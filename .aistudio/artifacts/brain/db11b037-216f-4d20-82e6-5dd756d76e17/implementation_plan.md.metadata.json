@@ -1,0 +1,6 @@
+{
+  "summary": "PlayKids V7.0 Master Debug & Optimization Plan: Resolves dual-voice conflict via a single serialized VoicePlaybackCoordinator, bundles complete 10-12yo youthful Bengali boy voice clips for all game prompts (disabling mature TTS when bundled assets exist), enforces request deduplication and lifecycle cancellation, and audits all 4 games, 100+ levels, buttons, and performance.",
+  "updatedAt": "2026-11-04T14:56:43.922239229Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

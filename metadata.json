@@ -1,0 +1,6 @@
+{
+  "name": "PlayKids",
+  "description": "Play. Match. Learn. Grow. Early childhood educational game in Bengali & English with 4 visual learning worlds, youthful Bengali voice, and 100+ levels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
