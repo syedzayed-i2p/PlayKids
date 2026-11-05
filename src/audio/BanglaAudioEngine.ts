@@ -253,6 +253,7 @@ class WebSoundEffectManager {
 
 export class BanglaAudioEngine {
   private currentAudio: HTMLAudioElement | null = null;
+  private currentRequestId = 0;
   private sfxManager = new WebSoundEffectManager();
   private settings: AudioSettingsState = {
     voiceEnabled: true,
@@ -270,7 +271,14 @@ export class BanglaAudioEngine {
   private bgmInterval: number | null = null;
 
   constructor() {
-    // Background music loop monitor
+    // Ensure any residual browser speech synthesis is cancelled at startup
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   updateSettings(newSettings: AudioSettingsState) {
@@ -322,7 +330,8 @@ export class BanglaAudioEngine {
     }
 
     this.isPlayingPraise = false;
-    this.playSequence(resolveAssetSequence(clean));
+    const reqId = ++this.currentRequestId;
+    this.playSequence(resolveAssetSequence(clean), reqId);
   }
 
   replayInstruction(text: string) {
@@ -342,7 +351,9 @@ export class BanglaAudioEngine {
 
     this.stopCurrentAudio();
     this.isPlayingPraise = true;
-    this.playSequence(resolveAssetSequence(text), () => {
+    const reqId = ++this.currentRequestId;
+    this.playSequence(resolveAssetSequence(text), reqId, () => {
+      if (reqId !== this.currentRequestId) return;
       this.isPlayingPraise = false;
       if (this.pendingRequest && this.settings.voiceEnabled) {
         const req = this.pendingRequest;
@@ -365,14 +376,17 @@ export class BanglaAudioEngine {
 
     this.stopCurrentAudio();
     this.isPlayingPraise = true;
-    this.playSequence(resolveAssetSequence(text), () => {
+    const reqId = ++this.currentRequestId;
+    this.playSequence(resolveAssetSequence(text), reqId, () => {
+      if (reqId !== this.currentRequestId) return;
       this.isPlayingPraise = false;
     });
   }
 
   playVoicePreviewSample(sample: ScriptEntry) {
     this.stopAndClearQueue();
-    this.playSequence([sample.assetFileName]);
+    const reqId = ++this.currentRequestId;
+    this.playSequence([sample.assetFileName], reqId);
   }
 
   playEffect(type: SoundEffectType) {
@@ -398,14 +412,24 @@ export class BanglaAudioEngine {
   }
 
   stopAndClearQueue() {
+    this.currentRequestId++;
     this.stopCurrentAudio();
     this.pendingRequest = null;
     this.isPlayingPraise = false;
   }
 
   private stopCurrentAudio() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
+    }
     if (this.currentAudio) {
       try {
+        this.currentAudio.onended = null;
+        this.currentAudio.onerror = null;
         this.currentAudio.pause();
         this.currentAudio.currentTime = 0;
       } catch {
@@ -415,7 +439,7 @@ export class BanglaAudioEngine {
     }
   }
 
-  private playSequence(fileNames: string[], onDone?: () => void) {
+  private playSequence(fileNames: string[], requestId: number, onDone?: () => void) {
     if (!fileNames || fileNames.length === 0) {
       onDone?.();
       return;
@@ -424,29 +448,40 @@ export class BanglaAudioEngine {
     let currentIndex = 0;
 
     const playNext = () => {
-      if (!this.settings.voiceEnabled || currentIndex >= fileNames.length) {
-        this.currentAudio = null;
-        onDone?.();
+      if (
+        requestId !== this.currentRequestId ||
+        !this.settings.voiceEnabled ||
+        currentIndex >= fileNames.length
+      ) {
+        if (requestId === this.currentRequestId) {
+          this.currentAudio = null;
+          onDone?.();
+        }
         return;
       }
 
       const fileName = fileNames[currentIndex];
       const audioUrl = `/voice/youthful_boy_bn/${fileName}`;
       const audio = new Audio(audioUrl);
+      // Shape vocal playback into a soft, sweet, youthful feminine 10–14 yr character
+      audio.preservesPitch = false;
+      audio.playbackRate = 1.07;
       this.currentAudio = audio;
 
       audio.onended = () => {
+        if (requestId !== this.currentRequestId) return;
         currentIndex++;
         playNext();
       };
 
       audio.onerror = () => {
+        if (requestId !== this.currentRequestId) return;
         currentIndex++;
         playNext();
       };
 
       audio.play().catch(() => {
-        // Autoplay policy or playback interruption
+        if (requestId !== this.currentRequestId) return;
         currentIndex++;
         playNext();
       });
@@ -457,7 +492,6 @@ export class BanglaAudioEngine {
 
   private startBgm() {
     if (this.bgmInterval) return;
-    // Play gentle soothing pentatonic notes every 6 seconds
     const notes = [261.63, 293.66, 329.63, 392.0, 440.0];
     this.bgmInterval = window.setInterval(() => {
       if (!this.settings.backgroundMusicEnabled) return;
