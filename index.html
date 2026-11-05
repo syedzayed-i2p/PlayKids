@@ -2,6 +2,73 @@
 <html lang="bn">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var origDefineProperty = Object.defineProperty;
+          Object.defineProperty = function (obj, prop, descriptor) {
+            if (
+              (obj === window || obj === globalThis) &&
+              prop === 'fetch' &&
+              descriptor &&
+              typeof descriptor.get === 'function' &&
+              typeof descriptor.set !== 'function'
+            ) {
+              var origGet = descriptor.get;
+              var customFetch = null;
+              return origDefineProperty.call(this, obj, prop, {
+                configurable: true,
+                enumerable: descriptor.enumerable !== false,
+                get: function () {
+                  return customFetch || origGet.call(this);
+                },
+                set: function (val) {
+                  if (typeof val === 'function') {
+                    customFetch = val;
+                  }
+                },
+              });
+            }
+            return origDefineProperty.call(this, obj, prop, descriptor);
+          };
+
+          var existingDesc = Object.getOwnPropertyDescriptor(window, 'fetch');
+          if (existingDesc && typeof existingDesc.get === 'function' && typeof existingDesc.set !== 'function') {
+            var currentGetter = existingDesc.get;
+            var assignedFetch = null;
+            origDefineProperty.call(Object, window, 'fetch', {
+              configurable: true,
+              enumerable: existingDesc.enumerable !== false,
+              get: function () {
+                return assignedFetch || currentGetter.call(window);
+              },
+              set: function (val) {
+                if (typeof val === 'function') {
+                  assignedFetch = val;
+                }
+              },
+            });
+          }
+
+          window.addEventListener(
+            'error',
+            function (e) {
+              var msg = (e && e.message) || '';
+              var file = (e && e.filename) || '';
+              if (
+                msg.indexOf('Cannot set property fetch') !== -1 ||
+                file.indexOf('chrome-extension://') === 0
+              ) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
+              }
+            },
+            true
+          );
+        } catch (_err) {}
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/brand/playkids_logo_transparent.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>PlayKids - খেলি • মেলাই • শিখি • এগিয়ে যাই</title>
